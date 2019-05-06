@@ -30,7 +30,7 @@ class SettingForm extends ApiModel
                 break;
             }
         }
-        $mch_data = $this->mch->getAttributes(['realname', 'tel','wechat_name', 'name', 'province_id', 'city_id', 'district_id', 'address', 'mch_common_cat_id', 'service_tel', 'logo', 'header_bg',]);
+        $mch_data = $this->mch->getAttributes(['realname', 'tel','wechat_name', 'name', 'province_id', 'city_id', 'district_id', 'address','longitude','latitude', 'mch_common_cat_id', 'service_tel', 'logo', 'header_bg',]);
         $mch_data['mch_common_cat_name'] = $mch_common_cat_name;
         $province = DistrictArr::getDistrict($this->mch->province_id);
         $city = DistrictArr::getDistrict($this->mch->city_id);

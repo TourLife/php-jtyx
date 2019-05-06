@@ -24,6 +24,8 @@ class SettingSubmitForm extends ApiModel
     public $city_id;
     public $district_id;
     public $address;
+    public $latitude;
+    public $longitude;
     public $mch_common_cat_id;
     public $service_tel;
     public $logo;
@@ -34,7 +36,7 @@ class SettingSubmitForm extends ApiModel
     public function rules()
     {
         return [
-            [['realname', 'tel', 'wechat_name', 'name', 'province_id', 'city_id', 'district_id', 'address', 'mch_common_cat_id', 'service_tel', 'logo', 'header_bg'], 'trim'],
+            [['realname', 'tel', 'wechat_name', 'name', 'province_id', 'city_id', 'district_id', 'address', 'latitude','longitude','mch_common_cat_id', 'service_tel', 'logo', 'header_bg'], 'trim'],
             [['realname', 'tel', 'name', 'province_id', 'city_id', 'district_id', 'address', 'mch_common_cat_id', 'service_tel', 'logo', 'header_bg'], 'required'],
             ['form_id', 'string'],
         ];
@@ -47,6 +49,8 @@ class SettingSubmitForm extends ApiModel
             'tel' => '联系电话',
             'name' => '店铺名称',
             'address' => '详细地址',
+            'latitude' => '纬度',
+            'longitude' => '经度',
             'service_tel' => '客服电话',
             'province_id' => '所在地区',
             'city_id' => '所在地区',

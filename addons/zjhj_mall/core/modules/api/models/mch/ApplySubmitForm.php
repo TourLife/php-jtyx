@@ -25,6 +25,8 @@ class ApplySubmitForm extends ApiModel
     public $city_id;
     public $district_id;
     public $address;
+    public $latitude;
+    public $longitude;
     public $mch_common_cat_id;
     public $service_tel;
     public $wechat_name;
@@ -34,8 +36,8 @@ class ApplySubmitForm extends ApiModel
     public function rules()
     {
         return [
-            [['realname', 'tel', 'name', 'province_id', 'city_id', 'district_id', 'address', 'mch_common_cat_id', 'service_tel',], 'required',],
-            [['realname', 'tel', 'name', 'address', 'service_tel','wechat_name'], 'trim',],
+            [['realname', 'tel', 'name', 'province_id', 'city_id', 'district_id', 'address','latitude','longitude', 'mch_common_cat_id', 'service_tel',], 'required',],
+            [['realname', 'tel', 'name', 'address','service_tel','wechat_name'], 'trim',],
             [['province_id', 'city_id', 'district_id', 'mch_common_cat_id',], 'integer',],
             ['form_id', 'string'],
         ];
@@ -48,6 +50,8 @@ class ApplySubmitForm extends ApiModel
             'tel' => '联系电话',
             'name' => '店铺名称',
             'address' => '详细地址',
+            'latitude' => '纬度',
+            'longitude' => '经度',
             'service_tel' => '客服电话',
             'province_id' => '所在地区',
             'city_id' => '所在地区',
@@ -87,6 +91,8 @@ class ApplySubmitForm extends ApiModel
         $mch->city_id = $this->city_id;
         $mch->district_id = $this->district_id;
         $mch->address = Html::encode($this->address);
+        $mch->latitude = Html::encode($this->latitude);
+        $mch->longitude = Html::encode($this->longitude);
         $mch->mch_common_cat_id = $this->mch_common_cat_id;
         $mch->service_tel = Html::encode($this->service_tel);
         $mch->addtime = time();

@@ -64,6 +64,17 @@ class IndexController extends Controller
         $form->store_id = $this->store->id;
         return new BaseApiResponse($form->search());
     }
+    
+    /*
+     * 根据地图推荐
+     * */
+    public function actionShopListByMap()
+    {
+        $form = new ShopListForm();
+        $form->attributes = \Yii::$app->request->get();
+        $form->store_id = $this->store->id;
+        return new BaseApiResponse($form->searchByMap());
+    }
 
     public function actionShopCat()
     {

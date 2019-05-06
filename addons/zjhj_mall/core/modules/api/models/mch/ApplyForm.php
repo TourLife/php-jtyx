@@ -83,6 +83,8 @@ class ApplyForm extends ApiModel
                     'city_id' => $mch->city_id,
                     'district_id' => $mch->district_id,
                     'address' => $mch->address,
+                    'latitude' => $mch->latitude,
+                    'longitude' => $mch->longitude,
                     'mch_common_cat_id' => $mch->mch_common_cat_id,
                     'mch_common_cat_name' => $mch_common_cat_name,
                     'service_tel' => $mch->service_tel,
