@@ -39,6 +39,10 @@ class CommonWx
                 'title' => '好店推荐',
             ],
             [
+                'url' => 'mch/shop-list-by-map/shop-list-by-map',
+                'title' => '附近商家',
+            ],
+            [
                 'url' => 'pages/cart/cart',
                 'title' => '购物车',
             ],

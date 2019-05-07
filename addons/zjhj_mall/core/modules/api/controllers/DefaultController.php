@@ -61,6 +61,19 @@ class DefaultController extends Controller
     }
 
     /**
+     * 首页根据当前位置获取数据
+     */
+    public function actionIndexByMap()
+    {
+        $form = new IndexForm();
+        $form->store_id = $this->store->id;
+        $form->_platform = \Yii::$app->request->get('_platform');
+        $form->latitude = \Yii::$app->request->get('latitude');
+        $form->longitude = \Yii::$app->request->get('longitude');
+        return $form->searchByMap();
+    }
+    
+    /**
      * 分类列表
      */
     public function actionCatList()

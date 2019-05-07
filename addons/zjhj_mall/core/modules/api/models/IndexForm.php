@@ -35,11 +35,18 @@ use app\models\User;
 use app\models\UserCoupon;
 use app\models\YyGoods;
 use yii\helpers\VarDumper;
+use app\hejiang\BaseApiResponse;
+use app\modules\api\models\mch\ShopListForm;
+use app\models\Order;
+use app\models\OrderDetail;
+use app\models\DistrictArr;
 
 class IndexForm extends ApiModel
 {
     public $store_id;
     public $_platform;
+    public $latitude;
+    public $longitude;
 
     public function search()
     {
@@ -189,7 +196,7 @@ class IndexForm extends ApiModel
         $mch_list = [];
         foreach ($module_list as &$m) {
             if ($m['name'] == 'mch') {
-                $m['title'] = '好店推荐';
+                $m['title'] = '附近商家';
                 $mch_list = $this->getMchList();
                 break;
             }
@@ -218,6 +225,183 @@ class IndexForm extends ApiModel
         return new ApiResponse(0, 'success', $data);
     }
 
+    public function searchByMap()
+    {
+        $store = $this->store;
+        if (!$store)
+            return new ApiResponse(1, 'Store不存在');
+            
+            $this->getMiaoshaData();
+            $banner_list = Banner::find()->where([
+                'is_delete' => 0,
+                'store_id' => $this->store_id,
+                'type' => 1,
+            ])->orderBy('sort ASC')->asArray()->all();
+            foreach ($banner_list as $i => $banner) {
+                if (!$banner['open_type']) {
+                    $banner_list[$i]['open_type'] = 'navigate';
+                }
+                if ($banner['open_type'] == 'wxapp') {
+                    $res = $this->getUrl($banner['page_url']);
+                    $banner_list[$i]['appId'] = $res[2];
+                    $banner_list[$i]['path'] = urldecode($res[4]);
+                }
+            }
+            
+            $nav_icon_list = HomeNav::find()->where([
+                'is_delete' => 0,
+                'is_hide' => 0,
+                'store_id' => $this->store_id,
+            ])->orderBy('sort ASC,addtime DESC')->select('name,pic_url,url,name,open_type')->asArray()->all();
+            
+            $arr = ['/pages/web/authorization/authorization'];
+            foreach ($nav_icon_list as $k => &$value) {
+                if ($value['open_type'] == 'wxapp') {
+                    $res = $this->getUrl($value['url']);
+                    $value['appId'] = $res[2];
+                    $value['path'] = urldecode($res[4]);
+                }
+                // 去除支付宝不需要的菜单
+                if ($this->_platform === 'my' && in_array($value['url'], $arr)) {
+                    unset($nav_icon_list[$k]);
+                }
+            }
+            $nav_icon_list = array_values($nav_icon_list);
+            unset($value);
+            
+            $module_list = $this->getModuleList($store);
+            $cat_str = '';
+            foreach ($module_list as $index => $value) {
+                if ($value['name'] == 'cat') {
+                    $cat_str = 'all';
+                    break;
+                }
+                if ($value['name'] == 'single_cat') {
+                    $cat_str .= "cat_id={$value['cat_id']}&";
+                    $cat_id[] = $value['cat_id'];
+                }
+            }
+            $cat_list_cache_key = md5('cat_list_cache_key&store_id=' . $this->store_id . $cat_str);
+            $cat_list = \Yii::$app->cache->get($cat_list_cache_key);
+            if (!$cat_list) {
+                $query = Cat::find()->where([
+                    'is_delete' => 0,
+                    'parent_id' => 0,
+                    'store_id' => $this->store_id,
+                ]);
+                if ($cat_str != 'all') {
+                    $query->andWhere(['id' => $cat_id]);
+                }
+                $cat_list = $query->orderBy('sort ASC')->asArray()->all();
+                foreach ($cat_list as $i => $cat) {
+                    $cat_list[$i]['page_url'] = '/pages/list/list?cat_id=' . $cat['id'];
+                    $cat_list[$i]['open_type'] = 'navigate';
+                    $cat_list[$i]['cat_pic'] = $cat['pic_url'];
+                    $goods_list_form = new GoodsListForm();
+                    $goods_list_form->store_id = $this->store_id;
+                    $goods_list_form->cat_id = $cat['id'];
+                    $goods_list_form->limit = $store->cat_goods_count;
+                    $goods_list_form_res = $goods_list_form->search();
+                    if ($goods_list_form_res->code == 0) {
+                        $goods_list_data = new \ArrayObject($goods_list_form_res->data, \ArrayObject::ARRAY_AS_PROPS);
+                        $goods_list = $goods_list_data['list'];
+                    } else {
+                        $goods_list = [];
+                    }
+                    $cat_list[$i]['goods_list'] = $goods_list;
+                }
+                \Yii::$app->cache->set($cat_list_cache_key, $cat_list, 60 * 10);
+            }
+            
+            $block_list = HomeBlock::find()->where(['store_id' => $this->store_id, 'is_delete' => 0])->all();
+            $new_block_list = [];
+            foreach ($block_list as $item) {
+                $data = json_decode($item->data, true);
+                foreach ($data['pic_list'] as &$value) {
+                    if ($value['open_type'] == 'wxapp') {
+                        $res = $this->getUrl($value['url']);
+                        $value['appId'] = $res[2];
+                        $value['path'] = urldecode($res[4]);
+                    }
+                }
+                unset($value);
+                $new_block_list[] = [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'data' => $data,
+                    'style' => $item->style
+                ];
+            }
+            $user_id = \Yii::$app->user->identity->id;
+            $coupon_form = new CouponListForm();
+            $coupon_form->store_id = $this->store_id;
+            $coupon_form->user_id = $user_id;
+            $coupon_list = $coupon_form->getList();
+            
+            $topic_list = Topic::find()->where(['store_id' => $this->store_id, 'is_delete' => 0])->orderBy('sort ASC,addtime DESC')->limit(6)->select('id,title')->asArray()->all();
+            $option = Option::getList('service,web_service,web_service_url,wxapp', $this->store_id, 'admin', '');
+            foreach ($option as $index => $value) {
+                if (in_array($index, ['wxapp'])) {
+                    $option[$index] = json_decode($value, true);
+                }
+            }
+            $update_form = new HomePageModule();
+            $update_form->store_id = $this->store_id;
+            $update_list = $update_form->search_1();
+            $newTopicList = [];
+            foreach ($update_list as $index => $value) {
+                if ($index == 'video') {
+                    foreach ($value as $k => $v) {
+                        $res = GetInfo::getVideoInfo($v['url']);
+                        if ($res && $res['code'] == 0) {
+                            $update_list[$index][$k]['url'] = $res['url'];
+                        }
+                    }
+                }
+                if($index == 'topic'){
+                    $newItem = [];
+                    foreach($topic_list as $key => $topic){
+                        $newItem[] = $topic;
+                        if(count($newItem) > 0 && (count($newItem) == intval($value['count']) || $key == count($topic_list) - 1)){
+                            $newTopicList[] = $newItem;
+                            $newItem = [];
+                        }
+                    }
+                }
+            }
+            
+            $mch_list = [];
+            foreach ($module_list as &$m) {
+                if ($m['name'] == 'mch') {
+                    $m['title'] = '附近商家';
+                    $mch_list = $this->getMchListByMap();
+                    break;
+                }
+            }
+            unset($m);
+            $data = [
+                'module_list' => $module_list,
+                'store' => StoreConfigForm::getData($store),
+                'banner_list' => $banner_list,
+                'nav_icon_list' => $nav_icon_list,
+                'cat_goods_cols' => $store->cat_goods_cols,
+                'cat_list' => $cat_list,
+                'block_list' => $new_block_list,
+                'coupon_list' => $coupon_list,
+                'topic_list' => $newTopicList,
+                'nav_count' => $store->nav_count,
+                'notice' => Option::get('notice', $this->store_id, 'admin'),
+                'miaosha' => $this->getMiaoshaData(),
+                'pintuan' => $this->getPintuanData(),
+                'yuyue' => $this->getYuyueData(),
+                'update_list' => $update_list,
+                'act_modal_list' => $this->getActModalList(),
+                'mch_list' => $mch_list,
+            ];
+            
+            return new ApiResponse(0, 'success', $data);
+    }
+    
     private function getBlockList()
     {
 
@@ -526,6 +710,62 @@ class IndexForm extends ApiModel
             ->orderBy('sort ASC,addtime DESC')->limit(10)
             ->asArray()->all();
         return $list ? $list : [];
+    }
+    
+    public function getMchListByMap()
+    {
+        $sql = 'SELECT m.*,ROUND(ASIN(SQRT(POW(SIN((:lat * PI() / 180 - m.latitude * PI() / 180) / 2),2) + COS(:lat * PI() / 180) * COS(m.latitude * PI() / 180)*POW(SIN((:lng * PI() / 180 - m.longitude * PI() / 180) / 2),2))) * 6378.138 * 2) AS distance
+FROM hjmall_mch m LEFT JOIN hjmall_mch_common_cat mc ON m.mch_common_cat_id = mc.id where m.store_id = :storeId AND m.is_delete = :isDelete AND m.is_open = :isOpen AND m.is_lock = :isLock AND m.is_recommend = :isRecommend';
+        $params = [
+            ":lat"=>$this->latitude,
+            ":lng"=>$this->longitude,
+            ":storeId"=>$this->store_id,
+            ':isDelete' => Model::IS_DELETE_FALSE,
+            ':isOpen' => Mch::IS_OPEN_TRUE,
+            ':isLock' => 0,
+            ':isRecommend' => Mch::IS_RECOMMEND_TRUE
+        ];
+        $sql = $sql." having distance <= 3 order by distance ASC";
+        $sql = $sql." LIMIT 0,10";
+        
+        $query = Mch::findBySql($sql,$params);
+        $count = $query->count();
+        $list = $query->select('m.id,m.name,m.logo')
+        ->asArray()
+        ->all();
+        
+        foreach ($list as $k => $item) {
+            $goodsList = Goods::find()->where([
+                'mch_id' => $item['id'],
+                'store_id' => $this->getCurrentStoreId(),
+                'is_delete' => Model::IS_DELETE_FALSE,
+                'status' => 1,
+            ])
+            ->select('id,name,price,cover_pic')->asArray()->all();
+            
+            $goodsCount = 0;
+            foreach ($goodsList as $v) {
+                $goodsCount += 1;
+            }
+            
+            $sellGoodsCount = Order::find()->alias('o')
+            ->leftJoin(['od' => OrderDetail::tableName()], 'od.order_id=o.id')
+            ->where([
+                'o.mch_id' => $item['id'],
+                'o.store_id' => $this->getCurrentStoreId(),
+                'o.is_pay'  => Order::IS_PAY_TRUE,
+            ])
+            ->count('od.id');
+            
+            $list[$k]['goods_count'] = $goodsCount;
+            $list[$k]['goods_list'] = $goodsList;
+            $list[$k]['sell_goods_count'] = $sellGoodsCount;
+            $list[$k]['province_id'] = DistrictArr::getDistrict($item['province_id']);
+            $list[$k]['city_id']  = DistrictArr::getDistrict($item['city_id']);
+            $list[$k]['district_id'] = DistrictArr::getDistrict($item['district_id']);
+        }
+        
+        return $list;
     }
 
     private function getUrl($url)
