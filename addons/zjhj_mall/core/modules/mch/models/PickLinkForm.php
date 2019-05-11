@@ -85,6 +85,18 @@ class PickLinkForm
                 ]
             ],
             [
+                'name' => "商品分类",
+                'link' => "/mch/shop-list-by-map/shop-list-by-map",
+                'open_type' => "navigate",
+                'params' => [
+                    [
+                        'key' => "cat_id",
+                        'value' => "",
+                        'desc' => "cat_id请填写在商品分类中相关分类的ID"
+                    ]
+                ]
+            ],
+            [
                 'name' => "购物车",
                 'link' => "/pages/cart/cart",
                 'open_type' => "navigate",
